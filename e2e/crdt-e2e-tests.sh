@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-BASE="http://127.0.0.1:18081"
-USER_TOKEN="REDACTED_TOKEN"
+BASE="${MNEMO_TEST_BASE:-http://127.0.0.1:18081}"
+USER_TOKEN="${MNEMO_TEST_USER_TOKEN:?ERROR: set MNEMO_TEST_USER_TOKEN env var (see e2e/README.md)}"
 AGENT_A="agent-a"
 AGENT_B="agent-b"
 WORKSPACE_KEY="e2e-crdt-workspace-$(date +%s)"

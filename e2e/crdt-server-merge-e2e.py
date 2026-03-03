@@ -7,10 +7,13 @@ instead of domination. The server returns HTTP 201 (not 200) + X-Mnemo-Merged: t
 No client re-write required.
 """
 
-import json, uuid, urllib.request, urllib.error, sys, time, copy
+import json, os, uuid, urllib.request, urllib.error, sys, time, copy
 
-BASE = "http://127.0.0.1:18081"
-USER_TOKEN = "REDACTED_TOKEN"
+BASE = os.environ.get("MNEMO_TEST_BASE", "http://127.0.0.1:18081")
+USER_TOKEN = os.environ.get("MNEMO_TEST_USER_TOKEN", "")
+if not USER_TOKEN:
+    print("FATAL: set MNEMO_TEST_USER_TOKEN env var (see e2e/README.md)")
+    sys.exit(1)
 AGENT_A = "agent-a"
 AGENT_B = "agent-b"
 

@@ -10,10 +10,13 @@ Phase C: Verify server merges both agents' edits atomically.
 Phase D: Both agents read back — must see all edits.
 """
 
-import json, uuid, urllib.request, urllib.error, sys, copy, time
+import json, os, uuid, urllib.request, urllib.error, sys, copy, time
 
-BASE     = "http://127.0.0.1:18081"
-USER_TOKEN = "REDACTED_TOKEN"
+BASE     = os.environ.get("MNEMO_TEST_BASE", "http://127.0.0.1:18081")
+USER_TOKEN = os.environ.get("MNEMO_TEST_USER_TOKEN", "")
+if not USER_TOKEN:
+    print("FATAL: set MNEMO_TEST_USER_TOKEN env var (see e2e/README.md)")
+    sys.exit(1)
 AGENT_A  = "agent-a"
 AGENT_B  = "agent-b"
 DOC_KEY  = f"real-doc-test-{int(time.time())}"

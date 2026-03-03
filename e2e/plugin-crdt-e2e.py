@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Simulate ServerBackend.store() Option C clock logic and verify CRDT behavior."""
-import json, uuid, urllib.request, urllib.error, sys, time
+import json, os, uuid, urllib.request, urllib.error, sys, time
 
-BASE = "http://127.0.0.1:18081"
-USER_TOKEN = "REDACTED_TOKEN"
+BASE = os.environ.get("MNEMO_TEST_BASE", "http://127.0.0.1:18081")
+USER_TOKEN = os.environ.get("MNEMO_TEST_USER_TOKEN", "")
+if not USER_TOKEN:
+    print("FATAL: set MNEMO_TEST_USER_TOKEN env var (see e2e/README.md)")
+    sys.exit(1)
 AGENT_A = "agent-a"
 AGENT_B = "agent-b"
 

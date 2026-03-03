@@ -8,8 +8,8 @@ with auto-embedding enabled.
 
 ## Prerequisites
 
-- mnemo-server running on `127.0.0.1:18081` (see CLAUDE.md for startup)
-- A user token provisioned in `user_space_test_01` (hardcoded in each script)
+- mnemo-server running (default `127.0.0.1:18081`, override with `MNEMO_TEST_BASE`)
+- `MNEMO_TEST_USER_TOKEN` env var set to a valid user token (see below)
 - Python 3.8+ or bash (no extra dependencies — stdlib only)
 - `jq` installed (for bash script)
 
@@ -25,6 +25,17 @@ with auto-embedding enabled.
 ## Running
 
 ```bash
+# 1. Provision a user token (one-time, no auth required)
+curl -s -X POST http://127.0.0.1:18081/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"e2e-test"}' | jq .
+# → { "ok": true, "user_id": "...", "api_token": "mnemo_..." }
+
+# 2. Export the token
+export MNEMO_TEST_USER_TOKEN="mnemo_..."  # from step 1
+# export MNEMO_TEST_BASE="http://127.0.0.1:18081"  # optional, this is the default
+
+# 3. Run tests
 bash e2e/crdt-e2e-tests.sh
 python3 e2e/plugin-crdt-e2e.py
 python3 e2e/crdt-server-merge-e2e.py
