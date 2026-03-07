@@ -224,7 +224,7 @@ function buildTools(backend: MemoryBackend): AnyAgentTool[] {
 }
 
 const mnemoPlugin = {
-  id: "mnemo",
+  id: "openclaw",
   name: "Mnemo Memory",
   description:
     "AI agent memory — server mode (mnemo-server) with hybrid vector + keyword search.",

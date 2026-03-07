@@ -329,7 +329,9 @@ export function registerHooks(
       });
 
 
-      if (result.memories_changed > 0) {
+      if (result.status === "accepted") {
+        logger.info("[mnemo] Ingest accepted for async processing");
+      } else if ((result.memories_changed ?? 0) > 0) {
         logger.info(
           `[mnemo] Ingested session: memories_changed=${result.memories_changed}, status=${result.status}`
         );

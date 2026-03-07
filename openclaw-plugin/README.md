@@ -25,9 +25,9 @@ Add mnemo to your project's `openclaw.json`:
 ```json
 {
   "plugins": {
-    "slots": { "memory": "mnemo" },
+    "slots": { "memory": "openclaw" },
     "entries": {
-      "mnemo": {
+      "openclaw": {
         "enabled": true,
         "config": {
           "apiUrl": "http://localhost:8080",
@@ -90,7 +90,7 @@ This is a `kind: "memory"` plugin — OpenClaw's framework manages when to load/
 ### Method A: npm install (Recommended)
 
 ```bash
-npm install mnemo-openclaw
+openclaw plugins install @mem9/openclaw
 ```
 
 ### Method B: From source
@@ -138,10 +138,10 @@ Each agent uses the same `tenantID` for the shared memory pool. The tenant ID is
 {
   "plugins": {
     "slots": {
-      "memory": "mnemo"
+      "memory": "openclaw"
     },
     "entries": {
-      "mnemo": {
+      "openclaw": {
         "enabled": true,
         "config": {
           "apiUrl": "http://your-server:8080",
@@ -184,7 +184,7 @@ Defined in `openclaw.plugin.json`:
 openclaw-plugin/
 ├── README.md              # This file
 ├── openclaw.plugin.json   # Plugin metadata + config schema
-├── package.json           # npm package (mnemo-openclaw)
+├── package.json           # npm package (@mem9/openclaw)
 ├── index.ts               # Plugin entry point + tool registration
 ├── backend.ts             # MemoryBackend interface
 ├── server-backend.ts      # Server mode: fetch → mnemo API
@@ -198,4 +198,4 @@ openclaw-plugin/
 |---|---|---|
 | `No mode configured` | Missing config | Add `apiUrl` and `tenantID` (or legacy `apiToken`/`userToken`) to plugin config |
 | `Server mode requires...` | Missing tenant ID | Add `tenantID` (or legacy `apiToken`/`userToken`) to config |
-| Plugin not loading | Not in memory slot | Set `"slots": {"memory": "mnemo"}` in openclaw.json |
+| Plugin not loading | Not in memory slot | Set `"slots": {"memory": "openclaw"}` in openclaw.json |

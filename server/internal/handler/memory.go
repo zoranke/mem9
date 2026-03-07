@@ -78,27 +78,18 @@ func (s *Server) createMemory(w http.ResponseWriter, r *http.Request) {
 		s.handleError(w, &domain.ValidationError{Field: "content", Message: "content or messages required"})
 		return
 	}
-	if len(req.Tags) > 0 || len(req.Metadata) > 0 || req.Mode != "" {
-		s.handleError(w, &domain.ValidationError{Field: "body", Message: "content mode does not accept tags/metadata/mode"})
-		return
-	}
-	if !svc.ingest.HasLLM() {
-		s.handleError(w, &domain.ValidationError{Field: "llm", Message: "LLM is required for reconciliation"})
+	if req.Mode != "" {
+		s.handleError(w, &domain.ValidationError{Field: "body", Message: "content mode does not accept mode"})
 		return
 	}
 
-	content := req.Content
-	sessionID := req.SessionID
-	go func(agentName, agentID, sessionID, content string) {
-		result, err := svc.ingest.ReconcileContent(context.Background(), agentName, agentID, sessionID, []string{content})
-		if err != nil {
-			slog.Error("async memories reconcile failed", "agent", agentID, "session", sessionID, "err", err)
-			return
-		}
-		slog.Info("async memories reconcile complete", "agent", agentID, "session", sessionID, "status", result.Status, "memories_changed", result.MemoriesChanged)
-	}(auth.AgentName, agentID, sessionID, content)
+	mem, err := svc.memory.Create(r.Context(), agentID, req.Content, req.Tags, req.Metadata)
+	if err != nil {
+		s.handleError(w, err)
+		return
+	}
 
-	respond(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+	respond(w, http.StatusCreated, mem)
 }
 
 type listResponse struct {

@@ -1,5 +1,5 @@
 {
-  "id": "mnemo",
+  "id": "openclaw",
   "name": "Mnemo Memory",
   "description": "AI agent memory — server mode (mnemo-server). Hybrid vector + keyword search.",
   "kind": "memory",

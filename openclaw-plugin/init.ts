@@ -389,8 +389,15 @@ function findPreferredPluginID(raw: JsonObject, entries: JsonObject): string | n
   const slots = asObject(plugins?.slots);
   const memorySlot = typeof slots?.memory === "string" ? slots.memory : "";
 
-  if (memorySlot && (memorySlot === "mem9" || memorySlot === "mnemo") && entries[memorySlot]) {
+  if (
+    memorySlot &&
+    (memorySlot === "openclaw" || memorySlot === "mem9" || memorySlot === "mnemo") &&
+    entries[memorySlot]
+  ) {
     return memorySlot;
+  }
+  if (entries.openclaw) {
+    return "openclaw";
   }
   if (entries.mem9) {
     return "mem9";

@@ -1,6 +1,6 @@
 {
-  "name": "mem9-openclaw",
-  "version": "0.2.0",
+  "name": "@mem9/openclaw",
+  "version": "0.2.1",
   "description": "OpenClaw shared memory plugin — cloud-persistent memory with hybrid vector + keyword search via mnemo-server",
   "type": "module",
   "license": "Apache-2.0",
@@ -30,6 +30,9 @@
   "exports": {
     ".": "./index.ts"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run typecheck"
@@ -42,6 +45,8 @@
     "typescript": "^5.5.0"
   },
   "openclaw": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   }
 }
