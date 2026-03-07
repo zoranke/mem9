@@ -95,9 +95,9 @@ func (s *IngestService) Ingest(ctx context.Context, agentName string, req Ingest
 		return nil, &domain.ValidationError{Field: "mode", Message: fmt.Sprintf("unsupported mode %q", mode)}
 	}
 	// For raw mode or no LLM, skip pipeline.
-	if mode == ModeRaw || s.llm == nil {
-		return s.ingestRaw(ctx, agentName, req)
-	}
+	//if mode == ModeRaw || s.llm == nil {
+	//	return s.ingestRaw(ctx, agentName, req)
+	//}
 
 	// Strip previously injected memory context from messages.
 	cleaned := stripInjectedContext(req.Messages)
@@ -109,7 +109,7 @@ func (s *IngestService) Ingest(ctx context.Context, agentName string, req Ingest
 	}
 
 	// Cap conversation size to avoid blowing LLM token limits.
-	const maxConversationRunes = 200000
+	const maxConversationRunes = 1000000
 	formatted = truncateRunes(formatted, maxConversationRunes)
 
 	insightIDs, warnings, err := s.extractAndReconcile(ctx, agentName, req.AgentID, req.SessionID, formatted)

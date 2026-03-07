@@ -44,9 +44,6 @@ func (s *MemoryService) Create(ctx context.Context, agentID, content string, tag
 	if err := validateMemoryInput(content, tags); err != nil {
 		return nil, err
 	}
-	if len(tags) > 0 || len(metadata) > 0 {
-		return nil, &domain.ValidationError{Field: "body", Message: "tags/metadata are not supported with content reconciliation"}
-	}
 
 	if s.ingest == nil || !s.ingest.HasLLM() {
 		return nil, &domain.ValidationError{Field: "llm", Message: "LLM is required for content reconciliation"}
@@ -62,6 +59,23 @@ func (s *MemoryService) Create(ctx context.Context, agentID, content string, tag
 	}
 	if len(result.InsightIDs) == 0 {
 		return nil, nil
+	}
+
+	// Apply user-provided tags/metadata to all created insights.
+	for _, id := range result.InsightIDs {
+		mem, err := s.memories.GetByID(ctx, id)
+		if err != nil {
+			continue
+		}
+		if len(tags) > 0 {
+			mem.Tags = tags
+		}
+		if len(metadata) > 0 {
+			mem.Metadata = metadata
+		}
+		if len(tags) > 0 || len(metadata) > 0 {
+			_ = s.memories.UpdateOptimistic(ctx, mem, 0)
+		}
 	}
 
 	latestID := result.InsightIDs[len(result.InsightIDs)-1]
