@@ -450,22 +450,37 @@ func (r *MemoryRepo) KeywordSearch(ctx context.Context, query string, f domain.M
 	return memories, rows.Err()
 }
 
+// ftsSafeLiteral escapes a query string for safe inline use inside a SQL
+// single-quoted literal (e.g. fts_match_word('...', content)).
+// TiDB requires FTS_MATCH_WORD's first argument to be a constant string, so
+// parameterized placeholders (?) are not accepted (Error 1235).
+// We escape backslashes and single-quotes per MySQL string literal rules.
+func ftsSafeLiteral(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `'`, `''`)
+	return s
+}
+
 // FTSSearch performs full-text search using FTS_MATCH_WORD with BM25 ranking.
 // Server-mode contract: includes state = 'active'.
+//
+// TiDB does not support parameterized placeholders in FTS_MATCH_WORD (Error 1235
+// "match against a non-constant string"), so the query term is inlined as a
+// SQL string literal after escaping via ftsSafeLiteral.
 func (r *MemoryRepo) FTSSearch(ctx context.Context, query string, f domain.MemoryFilter, limit int) ([]domain.Memory, error) {
 	conds, args := r.buildFilterConds(f)
 	where := strings.Join(conds, " AND ")
 
-	sqlQuery := `SELECT ` + allColumns + `, fts_match_word(?, content) AS fts_score
+	safeQ := ftsSafeLiteral(query)
+	sqlQuery := `SELECT ` + allColumns + `, fts_match_word('` + safeQ + `', content) AS fts_score
 		 FROM memories
-		 WHERE ` + where + ` AND fts_match_word(?, content)
-		 ORDER BY fts_match_word(?, content) DESC
+		 WHERE ` + where + ` AND fts_match_word('` + safeQ + `', content)
+		 ORDER BY fts_match_word('` + safeQ + `', content) DESC
 		 LIMIT ?`
 
-	fullArgs := make([]any, 0, len(args)+4)
-	fullArgs = append(fullArgs, query)
+	fullArgs := make([]any, 0, len(args)+1)
 	fullArgs = append(fullArgs, args...)
-	fullArgs = append(fullArgs, query, query, limit)
+	fullArgs = append(fullArgs, limit)
 
 	rows, err := r.db.QueryContext(ctx, sqlQuery, fullArgs...)
 	if err != nil {
