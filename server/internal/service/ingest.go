@@ -529,22 +529,26 @@ func (s *IngestService) gatherExistingMemories(ctx context.Context, agentID stri
 
 	// No vector search available.
 	if s.embedder == nil && s.autoModel == "" {
-		if s.memories.FTSAvailable() {
-			// FTS-only deployment: run per-fact FTS search (leg 2 only, no threshold).
-			for _, fact := range facts {
-				kwMatches, kwErr := s.memories.FTSSearch(ctx, fact, filter, perFactLimit)
-				if kwErr != nil {
-					return nil, fmt.Errorf("FTS search for fact %q: %w", truncateRunes(fact, 50), kwErr)
-				}
-				addUnseen(kwMatches, false)
+		// Use FTS if available, otherwise fall back to keyword (LIKE) search.
+		// During cold start, FTS may not yet be available (probe still running).
+		for _, fact := range facts {
+			var kwMatches []domain.Memory
+			var kwErr error
+			if s.memories.FTSAvailable() {
+				kwMatches, kwErr = s.memories.FTSSearch(ctx, fact, filter, perFactLimit)
+			} else {
+				kwMatches, kwErr = s.memories.KeywordSearch(ctx, fact, filter, perFactLimit)
 			}
-			if len(result) > maxExistingMemories {
-				result = result[:maxExistingMemories]
+			if kwErr != nil {
+				slog.Warn("gatherExistingMemories: keyword/FTS search failed for fact, skipping", "fact", truncateRunes(fact, 50), "err", kwErr)
+				continue
 			}
-			return result, nil
+			addUnseen(kwMatches, false)
 		}
-		// No vector, no FTS — should not happen on TiDB Serverless.
-		return nil, fmt.Errorf("no search backend available: autoModel and embedder are both unconfigured, FTS is unavailable")
+		if len(result) > maxExistingMemories {
+			result = result[:maxExistingMemories]
+		}
+		return result, nil
 	}
 
 	for _, fact := range facts {
@@ -554,17 +558,18 @@ func (s *IngestService) gatherExistingMemories(ctx context.Context, agentID stri
 			var vecErr error
 			vecMatches, vecErr = s.memories.AutoVectorSearch(ctx, fact, filter, perFactLimit)
 			if vecErr != nil {
-				return nil, fmt.Errorf("auto vector search for fact %q: %w", truncateRunes(fact, 50), vecErr)
+				slog.Warn("gatherExistingMemories: auto vector search failed for fact, continuing with keyword leg", "fact", truncateRunes(fact, 50), "err", vecErr)
 			}
 		} else {
 			vec, embedErr := s.embedder.Embed(ctx, fact)
 			if embedErr != nil {
-				return nil, fmt.Errorf("embed fact %q: %w", truncateRunes(fact, 50), embedErr)
-			}
-			var vecErr error
-			vecMatches, vecErr = s.memories.VectorSearch(ctx, vec, filter, perFactLimit)
-			if vecErr != nil {
-				return nil, fmt.Errorf("vector search for fact %q: %w", truncateRunes(fact, 50), vecErr)
+				slog.Warn("gatherExistingMemories: embed failed for fact, continuing with keyword leg", "fact", truncateRunes(fact, 50), "err", embedErr)
+			} else {
+				var vecErr error
+				vecMatches, vecErr = s.memories.VectorSearch(ctx, vec, filter, perFactLimit)
+				if vecErr != nil {
+					slog.Warn("gatherExistingMemories: vector search failed for fact, continuing with keyword leg", "fact", truncateRunes(fact, 50), "err", vecErr)
+				}
 			}
 		}
 		addUnseen(vecMatches, true) // Apply similarity threshold to vector results
@@ -578,9 +583,10 @@ func (s *IngestService) gatherExistingMemories(ctx context.Context, agentID stri
 			kwMatches, kwErr = s.memories.KeywordSearch(ctx, fact, filter, perFactLimit)
 		}
 		if kwErr != nil {
-			return nil, fmt.Errorf("keyword/FTS search for fact %q: %w", truncateRunes(fact, 50), kwErr)
+			slog.Warn("gatherExistingMemories: keyword/FTS search failed for fact, skipping", "fact", truncateRunes(fact, 50), "err", kwErr)
+		} else {
+			addUnseen(kwMatches, false) // No threshold for keyword/FTS results
 		}
-		addUnseen(kwMatches, false) // No threshold for keyword/FTS results
 	}
 
 	if len(result) > maxExistingMemories {

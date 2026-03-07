@@ -87,8 +87,9 @@ func (s *MemoryService) Search(ctx context.Context, filter domain.MemoryFilter) 
 	if s.memories.FTSAvailable() {
 		return s.ftsOnlySearch(ctx, filter)
 	}
-	// No vector, no FTS — should not happen on TiDB Serverless.
-	return nil, 0, fmt.Errorf("no search backend available: autoModel and embedder are both unconfigured, FTS is unavailable")
+	// FTS probe still running (cold start) — fall back to LIKE-based keyword search.
+	slog.Warn("search: FTS not yet available, falling back to keyword search")
+	return s.keywordOnlySearch(ctx, filter)
 }
 
 const rrfK = 60.0
@@ -134,6 +135,29 @@ func (s *MemoryService) ftsOnlySearch(ctx context.Context, filter domain.MemoryF
 	slog.Info("fts search completed", "query", filter.Query, "results", len(ftsResults))
 
 	page, total := s.paginate(ftsResults, offset, limit)
+	return page, total, nil
+}
+
+// keywordOnlySearch uses LIKE-based keyword search as a fallback when FTS
+// is not yet available (e.g., during cold start probe window).
+func (s *MemoryService) keywordOnlySearch(ctx context.Context, filter domain.MemoryFilter) ([]domain.Memory, int, error) {
+	limit := filter.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	fetchLimit := limit * 3
+
+	kwResults, err := s.memories.KeywordSearch(ctx, filter.Query, filter, fetchLimit)
+	if err != nil {
+		return nil, 0, fmt.Errorf("keyword search: %w", err)
+	}
+	slog.Info("keyword search completed (FTS unavailable)", "query", filter.Query, "results", len(kwResults))
+
+	page, total := s.paginate(kwResults, offset, limit)
 	return page, total, nil
 }
 
