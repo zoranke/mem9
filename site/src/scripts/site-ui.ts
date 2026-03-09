@@ -258,10 +258,9 @@ function applyOnboardingVersion(version: OnboardingVersion): void {
   const shell = document.querySelector<HTMLElement>('[data-onboarding-shell]');
   const command = document.querySelector<HTMLElement>('[data-onboarding-command]');
   const copyButton = document.querySelector<HTMLButtonElement>('[data-copy-button]');
-  const betaSupport = document.querySelector<HTMLElement>('[data-onboarding-beta-support]');
   const betaHighlights = document.querySelector<HTMLElement>('[data-beta-highlights]');
 
-  if (!shell || !command || !copyButton || !betaSupport || !betaHighlights) {
+  if (!shell || !command || !copyButton || !betaHighlights) {
     return;
   }
 
@@ -273,7 +272,6 @@ function applyOnboardingVersion(version: OnboardingVersion): void {
 
   command.textContent = nextText;
   copyButton.dataset.copyText = nextText;
-  betaSupport.hidden = version !== 'beta';
 
   if (version === 'beta') {
     betaHighlights.hidden = false;
