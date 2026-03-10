@@ -1,6 +1,6 @@
 ---
 name: mem9
-version: 1.0.3
+version: 1.0.5
 description: |
   Persistent cloud memory for OpenClaw agents.
 
@@ -46,18 +46,98 @@ metadata:
 
 # mem9
 
-Your agent forgets nothing. Stateless plugin → REST API → DB.
-
-Persistent memory for AI agents.
+mem9 gives OpenClaw persistent memory across resets, restarts, and new machines.
 
 The plugin connects to one cloud memory space, identified by a space ID.
 
 When talking to end users:
 - Say "space ID", "memory space", or "cloud memory space"
 - Do not mention `tenantID` unless you are editing raw plugin config
-- Explain that the space ID is what connects the user back to the same mem9 brain
+- Explain that the space ID is what reconnects the user to the same mem9 space
 - Treat the space ID as something the user should save for reconnecting later
-- Clearly warn that the space ID is effectively a token and must never be shared
+- Clearly warn that the space ID is effectively a secret and must never be shared
+
+---
+
+## Trigger phrases
+
+Use this skill when the user expresses intent to store, recall, or manage long-term memory.
+
+Common triggers include:
+- "remember this"
+- "save this for later"
+- "don't forget that..."
+- "what did I say last time?"
+- "recall my preferences"
+- "forget that"
+
+---
+
+## When to use this skill
+Use this skill when the user wants OpenClaw to persist or manage long-term memory across sessions, devices, or restarts.
+
+Typical situations include:
+
+- The user asks OpenClaw to remember something for future sessions
+- The user wants to recall or reconnect to existing long-term memory
+- The user wants persistent memory instead of local/session-only memory
+- The user wants to import existing OpenClaw memory files into mem9
+- The user is moving to a new machine and wants to keep the same memory
+- The user wants multiple agents or workflows to share the same memory space
+
+---
+
+## When NOT to use this skill
+
+Do not use this skill for:
+
+- Temporary conversation context that only matters in the current session
+- One-off tasks that do not require long-term memory
+- Troubleshooting unrelated to mem9 setup, import, or reconnection
+
+---
+
+
+## What should be remembered
+
+Good candidates:
+
+- User preferences
+- Profile facts about the user
+- Project context or ongoing work
+- Important decisions made during conversations
+- Long-term instructions or habits
+
+Avoid storing:
+
+- Temporary debugging context
+- Large data or files
+- Secrets, passwords, or API keys
+
+---
+
+## Memory intent detection
+
+If the user explicitly asks to remember something (for example: "remember this", "save this", "don't forget"), the agent should store the information using mem9 if mem9 is installed.
+
+If mem9 is not installed yet, suggest installing mem9 to enable persistent memory.
+
+---
+
+## Definition of Done
+
+This task is NOT complete until all of the following are true:
+
+1. mem9 space is created or verified reachable
+2. plugin is installed
+3. openclaw.json is configured correctly
+4. OpenClaw is restarted
+5. setup is verified
+6. the user has been sent the full Step 7 handoff message, including:
+- next step: import memories
+- space ID warning
+- recovery steps
+- backup plan
 
 ---
 
@@ -81,9 +161,16 @@ Lifecycle hooks (automatic — no agent action needed):
 
 ---
 
+## Common failure mode
+
+Agents often finish the technical setup and forget to send the required final handoff.
+Prevent this by treating the handoff as part of the setup itself, not as optional follow-up.
+
+---
+
 ## Onboarding
 
-## Terminology
+### Terminology
 
 Use this distinction consistently:
 
@@ -91,28 +178,38 @@ Use this distinction consistently:
 |---------------|-------------------------|
 | `tenantID` | Internal plugin config field; do not surface this to users unless editing config |
 | `SPACE_ID` env var | A local variable holding the user's mem9 space ID |
-| `token` | Treat as the same value as the mem9 space ID unless the user clearly means something else |
+| `secret` | Treat as the same value as the mem9 space ID unless the user clearly means something else |
 | "recovery key" | Avoid this term; say "space ID" instead |
 
-Short rule: `space ID`, `tenantID`, and `token` may refer to the same mem9 identifier. Prefer saying `space ID` to users, and use `tenantID` only in config examples.
+Short rule: `space ID`, `tenantID`, and `secret` may refer to the same mem9 identifier. Prefer saying `space ID` to users, and use `tenantID` only in config examples.
+Security note:
+Treat the space ID like a secret. Anyone who has it can access that mem9 space.
 
 If the user asks "What is this for?" answer plainly:
 
-> This is the key that reconnects you to your mem9 brain. OpenClaw uses it to save and recall your memory in the right place.
+> This is the key that reconnects you to your mem9 space. OpenClaw uses it to save and recall your memory in the right place.
 
 If the user asks "What is the relationship between tenantID and key?" answer plainly:
 
-> You only need the space ID. `tenantID` is just the internal config field name for the same value. Important: this space ID is effectively your token, so save it somewhere safe and never share it with anyone.
+> You only need the space ID. `tenantID` is just the internal config field name for the same value. Important: this space ID is effectively your secret, so save it somewhere safe and never share it with anyone.
 
 ### Step 0 — Check for existing space
 
 `[AGENT]` Ask the user before doing anything else:
 
-> Do you want to create a new mem9 brain for this setup, or reconnect to an existing mem9 brain you already have?
+> Which setup do you want?
+> 1. Create a new mem9 space
+> 2. Reconnect an existing mem9 space
 >
-> If you want to reconnect, paste your SPACE_ID and I will link this setup to your existing memory.
+> If you choose reconnect, paste your existing space ID.
+>
+> Heads-up: OpenClaw will restart later in this setup. When that happens, please wait a few minutes, then send "Hi" here to reconnect and continue.
 
-**If yes** — ask the user to paste the ID, save it as `SPACE_ID`, then skip to Step 2.
+Branching:
+- If the user chooses reconnect and provides a space ID, verify it first.
+  - If reachable, continue to Step 2.
+  - If unreachable, ask the user to re-check it or choose Step 1 to create a new space.
+- If the user chooses create, continue to Step 1.
 
 ```
 SPACE_ID="<paste-from-user>"
@@ -127,17 +224,17 @@ curl -sf "https://api.mem9.ai/v1alpha1/mem9s/$SPACE_ID/memories?limit=1" \
 
 If the check returns `OK`, say:
 
-> Great, your existing mem9 brain is reachable. I will keep going and connect this setup to that same memory.
+> Great, your existing mem9 space is reachable. I will keep going and connect this setup to that same memory.
 
 If the check fails, say:
 
-> I could not reach that SPACE_ID. Please double-check it, or create a new mem9 brain instead.
+> I could not reach that SPACE_ID. Please double-check it, or create a new mem9 space instead.
 
 **If no** — proceed to Step 1 to provision a new space.
 
 ---
 
-### Step 1 — Provision tenant
+### Step 1 — Create a new mem9 space
 
 > Skip this step if the user provided an existing space ID in Step 0.
 
@@ -158,9 +255,9 @@ Save `id` as `SPACE_ID`.
 
 When explaining it to the user, say:
 
-> Your new mem9 brain is ready. This SPACE_ID is how this machine, and any future machine you trust, reconnects to the same memory.
+> Your new mem9 space is ready. This SPACE_ID is how this machine, and any future machine you trust, reconnects to the same memory.
 >
-> Important: this SPACE_ID is also your token. Never share it with anyone. If someone else gets it, they can access your memory.
+> Important: this SPACE_ID is also your secret. Never share it with anyone. If someone else gets it, they can access your memory.
 
 ### Step 2 — Install plugin
 
@@ -272,45 +369,55 @@ Or if no `openclaw.json` exists, create:
 
 If result returns stored memory → setup successful.
 
-### Step 5 — What's Next
+### Step 5 — Restart OpenClaw
 
-`[AGENT]` Print the following to the user:
+Restart OpenClaw so the new mem9 plugin config is loaded.
+
+### Step 6 — Verify setup
+
+A setup is successful if all of the following are true:
+- the mem9 API is reachable
+- OpenClaw loads the mem9 plugin without config or plugin errors
+- the configured space ID can be read successfully
+- an empty result is acceptable for a newly created space
+Note:
+A newly created mem9 space may contain zero memories. Empty is still a valid success state.
+
+### Step 7 — What's Next
+
+
+`[AGENT]` After successful setup, the agent MUST send the following structured handoff before ending the task.
+Do not summarize or remove any parts of it.
+Translate the content into the user's language before sending, while keeping the same structure and all warnings. 
 
 ```
-✅ Your mem9 brain is ready.
-
+✅ Your mem9 space is ready.
 🧭 WHAT YOU CAN DO NEXT
-   Bring in your existing local memory first, so mem9 starts with your real history.
 
-   Say: "import memories to mem9"
-   I will scan and upload supported local files for you.
-   Supported: memory.json, memories/*.json, sessions/*.json
+Import your existing local memory so mem9 starts with your real history.
 
-💾 YOUR MEM9 SPACE ID (THIS IS YOUR TOKEN)
+Say: "import memories to mem9"  
+Supported: memory.json, memories/*.json, sessions/*.json
 
-   SPACE_ID: <your-space-id>
 
-   This is not just an ID.
-   It is also your token.
-   NEVER share it with anyone.
-   If someone gets this value, they can access your memory.
-   Save it somewhere safe so you can reconnect to the same mem9 brain later.
+💾 YOUR MEM9 SPACE ID
+
+SPACE_ID: <your-space-id>
+
+This ID is your access key to mem9.  
+Keep it private and store it somewhere safe.
+
 
 ♻️ RECOVERY
 
-   New machine / re-install:
-   1. Install mem9 again
-   2. Put this same SPACE_ID back into Step 4 config
-   3. Your memory reconnects immediately
+Reinstall mem9 and use the same SPACE_ID in Step 4.  
+Your memory will reconnect instantly.
+
 
 📦 BACKUP PLAN
 
-   Local backup:
-   Keep your original local memory/session files before import.
-
-   Offsite recovery:
-   Save the SPACE_ID in your password manager,
-   team vault, or another secure offsite location.
+Keep your original local memory/session files as backup.  
+Also store the SPACE_ID in a password manager or secure vault.
 ```
 
 Do not default to offering a synthetic write/read demo as the next step.
@@ -333,14 +440,14 @@ Header: `X-Mnemo-Agent-Id: <name>` (optional)
 |--------|------|-------------|
 | POST | `/v1alpha1/mem9s` | Provision tenant |
 | GET | `/healthz` | Health check |
-| POST | `/{tid}/memories` | Create memory |
-| GET | `/{tid}/memories` | Search (`?q=`, `?tags=`, `?source=`, `?limit=`) |
-| GET | `/{tid}/memories/{id}` | Get by ID |
-| PUT | `/{tid}/memories/{id}` | Update |
-| DELETE | `/{tid}/memories/{id}` | Delete |
-| POST | `/{tid}/imports` | Upload file (multipart) |
-| GET | `/{tid}/imports` | List import tasks |
-| GET | `/{tid}/imports/{id}` | Task status |
+| POST | `/{tenantID}/memories` | Create memory |
+| GET | `/{tenantID}/memories` | Search (`?q=`, `?tags=`, `?source=`, `?limit=`) |
+| GET | `/{tenantID}/memories/{id}` | Get by ID |
+| PUT | `/{tenantID}/memories/{id}` | Update |
+| DELETE | `/{tenantID}/memories/{id}` | Delete |
+| POST | `/{tenantID}/imports` | Upload file (multipart) |
+| GET | `/{tenantID}/imports` | List import tasks |
+| GET | `/{tenantID}/imports/{id}` | Task status |
 
 ---
 
@@ -396,8 +503,8 @@ Suggested English wording:
 
 ```text
 This SPACE_ID is not a nickname.
-It is the key that reconnects you to your mem9 brain.
-It is also effectively your token.
+It is the key that reconnects you to your mem9 space.
+It is also effectively your secret.
 Never share it with anyone.
 If someone else gets it, they can access your memory.
 Save it somewhere safe because you will use the same value later if you want to reconnect on another machine.
