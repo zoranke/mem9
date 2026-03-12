@@ -11,31 +11,10 @@ AGENT_NAME="${MRNIAH_AGENT:-${AGENT:-main}}"
 SAMPLE_LIMIT="${MRNIAH_LIMIT:-300}"
 USE_LOCAL="${MRNIAH_LOCAL:-1}"
 
-MNEMO_API_URL="${MNEMO_API_URL:-}"
-MNEMO_TENANT_ID="${MNEMO_TENANT_ID:-}"
-
-TIDB_ZERO_API="${TIDB_ZERO_API:-https://zero.tidbapi.com/v1alpha1/instances}"
-MNEMO_DB_NAME="${MNEMO_DB_NAME:-test}"
-MNEMO_SERVER_PORT="${MNEMO_SERVER_PORT:-18082}"
-MNEMO_SCHEMA="${MNEMO_SCHEMA:-$ROOT/server/schema.sql}"
-SERVER_LOG="${SERVER_LOG:-/tmp/mrniah-mnemo-server.log}"
+MEM9_BASE_URL="${MEM9_BASE_URL:-${MNEMO_API_URL:-https://api.mem9.ai}}"
+MEM9_SPACE_ID=""
 
 BASE_CMDS=(openclaw python3 jq curl)
-SERVER_CMDS=(go mysql)
-
-SERVER_PID=""
-
-# Cache tenant IDs to avoid re-provisioning when hitting the same API URL.
-STATE_DIR="$MRNIAH_DIR/.cache"
-STATE_FILE="$STATE_DIR/mem_compare_state.json"
-CACHE_TENANT="${MRNIAH_CACHE_TENANT:-1}"
-
-# Add common Homebrew mysql-client path so non-interactive shells can find `mysql`.
-if [[ -d "/opt/homebrew/opt/mysql-client/bin" ]]; then
-  PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
-elif [[ -d "/usr/local/opt/mysql-client/bin" ]]; then
-  PATH="/usr/local/opt/mysql-client/bin:$PATH"
-fi
 
 log() {
   echo "[$(date '+%H:%M:%S')] $*" >&2
@@ -84,54 +63,9 @@ normalize_url() {
   echo "$raw"
 }
 
-read_cached_tenant() {
-  local api_url="$1"
-  if [[ ! -f "$STATE_FILE" ]]; then
-    echo ""
-    return
-  fi
-  python3 - <<'PY' "$STATE_FILE" "$api_url"
-import json, sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-api = sys.argv[2]
-try:
-    data = json.loads(path.read_text())
-except Exception:
-    print("")
-    raise SystemExit(0)
-tenants = data.get("tenants", {})
-print(tenants.get(api, ""))
-PY
-}
-
-write_cached_tenant() {
-  local api_url="$1"
-  local tenant_id="$2"
-  mkdir -p "$STATE_DIR"
-  python3 - <<'PY' "$STATE_FILE" "$api_url" "$tenant_id"
-import json, sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-api = sys.argv[2]
-tenant = sys.argv[3]
-data = {}
-if path.exists():
-    try:
-        data = json.loads(path.read_text())
-    except Exception:
-        data = {}
-tenants = data.setdefault("tenants", {})
-tenants[api] = tenant
-path.write_text(json.dumps(data, indent=2))
-PY
-}
-
 provision_tenant() {
   local api_url
-  api_url="$(normalize_url "$MNEMO_API_URL")"
+  api_url="$(normalize_url "$MEM9_BASE_URL")"
   log "Provisioning mem9 tenant via ${api_url}/v1alpha1/mem9s"
   local resp
   if ! resp=$(curl -sf -X POST "${api_url}/v1alpha1/mem9s"); then
@@ -148,156 +82,66 @@ provision_tenant() {
   echo "$tenant_id"
 }
 
-ensure_base_profile() {
+configure_base_profile() {
   if [[ "$BASE_PROFILE" == "$MEM_PROFILE" ]]; then
     echo "ERROR: BASE_PROFILE and MEM_PROFILE must differ." >&2
     exit 2
   fi
   local base_dir="$HOME/.openclaw-${BASE_PROFILE}"
-  if [[ ! -d "$base_dir" ]]; then
-    cat >&2 <<EOF
-ERROR: Base profile directory not found: $base_dir
-Run openclaw at least once with --profile $BASE_PROFILE so openclaw.json exists.
-EOF
-    exit 2
+  local base_ws="$HOME/.openclaw/workspace-${BASE_PROFILE}"
+  if [[ -d "$base_dir" ]]; then
+    log "Resetting existing base profile dir: $base_dir"
+    rm -rf "$base_dir"
   fi
+  if [[ -d "$base_ws" ]]; then
+    log "Resetting existing base workspace dir: $base_ws"
+    rm -rf "$base_ws"
+  fi
+
+  log "Configuring base profile: $BASE_PROFILE"
+  openclaw --profile "$BASE_PROFILE" config set gateway.mode local >/dev/null
+
+  cp -r "$ROOT/benchmark/workspace" "$base_ws"
+  log "Copied workspace files to $base_ws"
 }
 
 clone_profile() {
   local base_dir="$HOME/.openclaw-${BASE_PROFILE}"
   local target_dir="$HOME/.openclaw-${MEM_PROFILE}"
+  local target_ws="$HOME/.openclaw/workspace-${MEM_PROFILE}"
 
   if [[ -d "$target_dir" ]]; then
-    if [[ "${MRNIAH_RESET_MEM_PROFILE:-0}" == "1" ]]; then
-      log "Resetting existing mem profile dir: $target_dir"
-      if ! rm -rf "$target_dir"; then
-        echo "ERROR: Failed to remove $target_dir. Remove it manually or unset MRNIAH_RESET_MEM_PROFILE." >&2
-        exit 2
-      fi
-    else
-      log "Mem profile already exists: $target_dir (set MRNIAH_RESET_MEM_PROFILE=1 to regenerate)"
-      return
-    fi
+    log "Resetting existing mem profile dir: $target_dir"
+    rm -rf "$target_dir"
+  fi
+  if [[ -d "$target_ws" ]]; then
+    log "Resetting existing mem workspace dir: $target_ws"
+    rm -rf "$target_ws"
   fi
 
   log "Creating mem profile dir by copying $base_dir -> $target_dir"
   mkdir -p "$(dirname "$target_dir")"
   cp -a "$base_dir" "$target_dir"
-}
 
-cleanup_server() {
-  if [[ -n "$SERVER_PID" ]]; then
-    log "Stopping mnemo-server (pid $SERVER_PID)"
-    kill "$SERVER_PID" 2>/dev/null || true
-    wait "$SERVER_PID" 2>/dev/null || true
-    SERVER_PID=""
-  fi
-}
-
-start_local_mnemo_stack() {
-  trap cleanup_server EXIT
-
-  log "Provisioning TiDB Zero cluster via $TIDB_ZERO_API"
-  local zero_resp
-  if ! zero_resp=$(curl -sf --retry 3 -X POST "$TIDB_ZERO_API" \
-    -H "Content-Type: application/json" \
-    -d '{"tag":"mrniah-mem"}'); then
-    echo "ERROR: Failed to provision TiDB Zero cluster" >&2
-    exit 2
-  fi
-
-  local DB_HOST DB_PORT DB_USER DB_PASS
-  DB_HOST=$(echo "$zero_resp" | jq -r '.instance.connection.host')
-  DB_PORT=$(echo "$zero_resp" | jq -r '.instance.connection.port')
-  DB_USER=$(echo "$zero_resp" | jq -r '.instance.connection.username')
-  DB_PASS=$(echo "$zero_resp" | jq -r '.instance.connection.password')
-  if [[ -z "$DB_HOST" || "$DB_HOST" == "null" ]]; then
-    echo "ERROR: Invalid TiDB Zero response:" >&2
-    echo "$zero_resp" | jq . >&2 || echo "$zero_resp" >&2
-    exit 2
-  fi
-
-  log "Waiting for TiDB to be ready at ${DB_HOST}:${DB_PORT}"
-  for _ in $(seq 1 60); do
-    if MYSQL_PWD="$DB_PASS" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" \
-         --ssl-mode=REQUIRED -e "SELECT 1" >/dev/null 2>&1; then
-      break
-    fi
-    sleep 2
-  done
-  if ! MYSQL_PWD="$DB_PASS" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" \
-       --ssl-mode=REQUIRED -e "SELECT 1" >/dev/null 2>&1; then
-    echo "ERROR: TiDB Zero cluster not ready after retries." >&2
-    exit 2
-  fi
-
-  log "Applying schema $MNEMO_SCHEMA"
-  MYSQL_PWD="$DB_PASS" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -D "$MNEMO_DB_NAME" \
-    --ssl-mode=REQUIRED <"$MNEMO_SCHEMA"
-
-  log "Building mnemo-server"
-  (cd "$ROOT/server" && go build -o "$ROOT/server/mnemo-server" ./cmd/mnemo-server)
-
-  local dsn="${DB_USER}:${DB_PASS}@tcp(${DB_HOST}:${DB_PORT})/${MNEMO_DB_NAME}?parseTime=true&tls=true"
-  log "Starting mnemo-server on port $MNEMO_SERVER_PORT (logs: $SERVER_LOG)"
-  MNEMO_DSN="$dsn" MNEMO_PORT="$MNEMO_SERVER_PORT" "$ROOT/server/mnemo-server" \
-    >"$SERVER_LOG" 2>&1 &
-  SERVER_PID=$!
-
-  for _ in $(seq 1 30); do
-    if curl -sf "http://localhost:${MNEMO_SERVER_PORT}/healthz" >/dev/null 2>&1; then
-      break
-    fi
-    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-      echo "ERROR: mnemo-server exited unexpectedly. Logs:" >&2
-      cat "$SERVER_LOG" >&2
-      exit 2
-    fi
-    sleep 1
-  done
-
-  if ! curl -sf "http://localhost:${MNEMO_SERVER_PORT}/healthz" >/dev/null 2>&1; then
-    echo "ERROR: mnemo-server failed to start. Logs:" >&2
-    cat "$SERVER_LOG" >&2
-    exit 2
-  fi
-
-  MNEMO_API_URL="http://localhost:${MNEMO_SERVER_PORT}"
-  log "mnemo-server ready at $MNEMO_API_URL"
+  cp -r "$ROOT/benchmark/workspace" "$target_ws"
+  log "Copied workspace files to $target_ws"
 }
 
 configure_mem_profile() {
   local api_url
-  api_url="$(normalize_url "$MNEMO_API_URL")"
+  api_url="$(normalize_url "$MEM9_BASE_URL")"
 
-  if [[ -z "$MNEMO_TENANT_ID" ]]; then
-    if [[ "$CACHE_TENANT" != "0" ]]; then
-      local cached
-      cached="$(read_cached_tenant "$api_url")"
-      if [[ -n "$cached" ]]; then
-        MNEMO_TENANT_ID="$cached"
-        log "Reusing cached tenant ID: $MNEMO_TENANT_ID"
-      fi
-    fi
-    if [[ -z "$MNEMO_TENANT_ID" ]]; then
-      MNEMO_TENANT_ID="$(provision_tenant)"
-      log "Tenant ID: $MNEMO_TENANT_ID"
-      if [[ "$CACHE_TENANT" != "0" ]]; then
-        write_cached_tenant "$api_url" "$MNEMO_TENANT_ID"
-      fi
-    fi
-  else
-    log "Using existing tenant ID: $MNEMO_TENANT_ID"
-  fi
+  MEM9_SPACE_ID="$(provision_tenant)"
+  log "Provisioned fresh mem9 space ID: $MEM9_SPACE_ID"
 
   log "Configuring mem profile: $MEM_PROFILE"
   openclaw --profile "$MEM_PROFILE" config set gateway.mode local >/dev/null
   openclaw --profile "$MEM_PROFILE" plugins install --link "$ROOT/openclaw-plugin" >/dev/null
-  openclaw --profile "$MEM_PROFILE" config set --strict-json plugins.allow '["mnemo"]' >/dev/null
-  openclaw --profile "$MEM_PROFILE" config set plugins.slots.memory mnemo >/dev/null
-  openclaw --profile "$MEM_PROFILE" config set plugins.entries.mnemo.enabled true >/dev/null
-  openclaw --profile "$MEM_PROFILE" config set plugins.entries.mnemo.config.apiUrl "$api_url" >/dev/null
-  openclaw --profile "$MEM_PROFILE" config set plugins.entries.mnemo.config.tenantID "$MNEMO_TENANT_ID" >/dev/null
+  openclaw --profile "$MEM_PROFILE" config set --strict-json plugins.allow '["mem9"]' >/dev/null
+  openclaw --profile "$MEM_PROFILE" config set plugins.slots.memory mem9 >/dev/null
+  openclaw --profile "$MEM_PROFILE" config set plugins.entries.mem9.enabled true >/dev/null
+  openclaw --profile "$MEM_PROFILE" config set plugins.entries.mem9.config.apiUrl "$api_url" >/dev/null
+  openclaw --profile "$MEM_PROFILE" config set plugins.entries.mem9.config.tenantID "$MEM9_SPACE_ID" >/dev/null
 }
 
 run_batch_for_profile() {
@@ -377,15 +221,10 @@ main() {
   require_python310
   require_cmds "${BASE_CMDS[@]}"
   ensure_dataset
-  ensure_base_profile
+  configure_base_profile
   clone_profile
 
-  if [[ -z "${MNEMO_API_URL:-}" ]]; then
-    require_cmds "${SERVER_CMDS[@]}"
-    start_local_mnemo_stack
-  else
-    log "Using existing mnemo-server: $MNEMO_API_URL"
-  fi
+  log "Using mem9 service: $MEM9_BASE_URL"
 
   configure_mem_profile
 
