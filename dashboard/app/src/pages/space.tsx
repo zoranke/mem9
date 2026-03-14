@@ -175,27 +175,6 @@ export function SpacePage() {
   }, [analysisFilteredMemories, displayedMemories, usingLocalAnalysisList]);
 
   useEffect(() => {
-    if (!usingLocalAnalysisList || isMemoryLoading) return;
-
-    if (displayedMemories.length === 0) {
-      setSelected(null);
-      return;
-    }
-
-    if (
-      !selected ||
-      !displayedMemories.some((memory) => memory.id === selected.id)
-    ) {
-      setSelected(displayedMemories[0] ?? null);
-    }
-  }, [
-    displayedMemories,
-    isMemoryLoading,
-    selected,
-    usingLocalAnalysisList,
-  ]);
-
-  useEffect(() => {
     if (isMemoryLoading || !selected) return;
 
     if (displayedMemories.length === 0) {
@@ -204,7 +183,7 @@ export function SpacePage() {
     }
 
     if (!displayedMemories.some((memory) => memory.id === selected.id)) {
-      setSelected(displayedMemories[0] ?? null);
+      setSelected(null);
     }
   }, [displayedMemories, isMemoryLoading, selected]);
 
@@ -404,7 +383,7 @@ export function SpacePage() {
         }`}
       >
         <div className="flex flex-col gap-8 xl:flex-row">
-          <div className="min-w-0 flex-1 py-8">
+          <div className="min-w-0 flex-1 py-8 xl:order-2">
             {/* Stats cards (clickable for type filtering) */}
             {stats && (
               <div
@@ -721,7 +700,7 @@ export function SpacePage() {
           </div>
 
           {features.enableAnalysis && (
-            <div className="py-8 xl:py-8">
+            <div className="py-8 xl:order-1 xl:py-8">
               <AnalysisPanel
                 state={analysis.state}
                 sourceCount={analysis.sourceCount}
