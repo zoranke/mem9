@@ -24,6 +24,30 @@
       "insight": "自主学习"
     }
   },
+  "dashboard_stats": {
+    "eyebrow": "概览",
+    "title": "记忆看板",
+    "total": "总记忆数",
+    "today_added": "今日新增",
+    "agent_count": "活跃 agent 数",
+    "agent_distribution": "按 agent 分布",
+    "agent_distribution_hint": "基于 agent_id 的记忆占比",
+    "empty": "暂无 agent 数据"
+  },
+  "audit": {
+    "title": "审计",
+    "subtitle": "查看最近的看板和 API 操作，并导出为离线分析文件。",
+    "export_csv": "导出 CSV",
+    "export_json": "导出 JSON",
+    "export_success": "已导出 {{format}}",
+    "empty": "暂无审计记录",
+    "columns": {
+      "time": "时间",
+      "actor": "操作者",
+      "action": "动作",
+      "status": "状态"
+    }
+  },
   "tabs": {
     "all": "全部",
     "pinned": "手动记录",

@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  mnemo-server:
+    image: ghcr.io/mem9-ai/mem9-server:latest
+    container_name: mnemo-server
+    restart: unless-stopped
+    env_file:
+      - ./env/mnemo-server.env
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data/uploads:/data/mem9/uploads
+    networks:
+      - mem9
+
+  dashboard-api:
+    image: node:22-alpine
+    container_name: mem9-dashboard-api
+    restart: unless-stopped
+    working_dir: /app
+    command: ["sh", "-c", "npm install && npm start"]
+    env_file:
+      - ./env/dashboard-api.env
+    volumes:
+      - ../dashboard/api:/app
+      - ./data/audit:/data/audit
+    depends_on:
+      - mnemo-server
+    networks:
+      - mem9
+
+  dashboard-web:
+    build:
+      context: ../dashboard/app
+      dockerfile: Dockerfile
+    container_name: mem9-dashboard-web
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    depends_on:
+      - dashboard-api
+    networks:
+      - mem9
+
+networks:
+  mem9:
+    driver: bridge

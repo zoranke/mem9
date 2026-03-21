@@ -20,6 +20,10 @@ import type {
   ImportTaskListStatus,
   ImportTaskStatus,
 } from "@/types/import";
+import type {
+  AuditLogListResponse,
+  DashboardStats,
+} from "@/types/dashboard";
 import {
   removeCachedMemory,
   upsertCachedMemories,
@@ -215,6 +219,31 @@ function mockTopicSummary(params?: TimeRangeParams): TopicSummary {
   return { topics, total: filtered.length };
 }
 
+function mockDashboardStats(params?: TimeRangeParams): DashboardStats {
+  const filtered = applyTimeFilter(mockStore, params);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const counts = new Map<string, number>();
+  for (const memory of filtered) {
+    const agentId = memory.agent_id || "unknown";
+    counts.set(agentId, (counts.get(agentId) ?? 0) + 1);
+  }
+
+  return {
+    ...mockStats(params),
+    today_added: filtered.filter((memory) => {
+      const createdAt = Date.parse(memory.created_at);
+      return Number.isFinite(createdAt) && createdAt >= today.getTime();
+    }).length,
+    agent_distribution: [...counts.entries()].map(([agent_id, count]) => ({
+      agent_id,
+      count,
+      ratio: filtered.length === 0 ? 0 : count / filtered.length,
+    })),
+  };
+}
+
 export const mockProvider: DashboardProvider = {
   async verifySpace(spaceId: string): Promise<SpaceInfo> {
     await delay(400);
@@ -247,6 +276,14 @@ export const mockProvider: DashboardProvider = {
   ): Promise<MemoryStats> {
     await delay(200);
     return mockStats(params);
+  },
+
+  async getDashboardStats(
+    _spaceId: string,
+    params?: TimeRangeParams,
+  ): Promise<DashboardStats> {
+    await delay(180);
+    return mockDashboardStats(params);
   },
 
   async getMemory(_spaceId: string, memoryId: string): Promise<Memory> {
@@ -413,5 +450,24 @@ export const mockProvider: DashboardProvider = {
   ): Promise<TopicSummary> {
     await delay(250);
     return mockTopicSummary(params);
+  },
+
+  async listAuditLogs(
+    _spaceId: string,
+    _limit?: number,
+  ): Promise<AuditLogListResponse> {
+    await delay(120);
+    return { logs: [], total: 0 };
+  },
+
+  async exportAuditLogs(
+    _spaceId: string,
+    _format: "csv" | "json",
+  ): Promise<Blob> {
+    await delay(120);
+    return new Blob(
+      [JSON.stringify({ exported_at: new Date().toISOString(), logs: [] }, null, 2)],
+      { type: "application/json" },
+    );
   },
 };

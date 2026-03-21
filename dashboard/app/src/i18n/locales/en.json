@@ -24,6 +24,30 @@
       "insight": "Auto Learned"
     }
   },
+  "dashboard_stats": {
+    "eyebrow": "Snapshot",
+    "title": "Memory dashboard",
+    "total": "Total memories",
+    "today_added": "Added today",
+    "agent_count": "Active agents",
+    "agent_distribution": "By agent",
+    "agent_distribution_hint": "Share of memories by agent_id",
+    "empty": "No agent data yet"
+  },
+  "audit": {
+    "title": "Audit",
+    "subtitle": "Review recent dashboard and API operations, then export them for offline analysis.",
+    "export_csv": "Export CSV",
+    "export_json": "Export JSON",
+    "export_success": "Audit exported as {{format}}",
+    "empty": "No audit records yet",
+    "columns": {
+      "time": "Time",
+      "actor": "Actor",
+      "action": "Action",
+      "status": "Status"
+    }
+  },
   "tabs": {
     "all": "All",
     "pinned": "Manually Saved",

@@ -11,6 +11,10 @@ import type {
   SpaceInfo,
   TopicSummary,
 } from "@/types/memory";
+import type {
+  AuditLogListResponse,
+  DashboardStats,
+} from "@/types/dashboard";
 import type { TimeRangeParams } from "@/types/time-range";
 import type { ImportTask, ImportTaskList } from "@/types/import";
 
@@ -42,4 +46,10 @@ export interface DashboardProvider {
     spaceId: string,
     params?: TimeRangeParams,
   ): Promise<TopicSummary>;
+  getDashboardStats(
+    spaceId: string,
+    params?: TimeRangeParams,
+  ): Promise<DashboardStats>;
+  listAuditLogs(spaceId: string, limit?: number): Promise<AuditLogListResponse>;
+  exportAuditLogs(spaceId: string, format: "csv" | "json"): Promise<Blob>;
 }

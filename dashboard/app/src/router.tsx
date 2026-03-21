@@ -13,6 +13,7 @@ import type { AnalysisCategory } from "@/types/analysis";
 import type { TimeRangePreset } from "@/types/time-range";
 import { trackMixpanelPageView } from "@/lib/mixpanel";
 import { ConnectPage } from "@/pages/connect";
+import { AuditPage } from "@/pages/audit";
 import { SpacePage } from "@/pages/space";
 
 function RootLayout() {
@@ -101,7 +102,13 @@ const spaceRoute = createRoute({
   }),
 });
 
-const routeTree = rootRoute.addChildren([connectRoute, spaceRoute]);
+const auditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/audit",
+  component: AuditPage,
+});
+
+const routeTree = rootRoute.addChildren([connectRoute, spaceRoute, auditRoute]);
 
 export const router = createRouter({
   routeTree,

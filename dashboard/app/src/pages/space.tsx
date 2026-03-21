@@ -11,6 +11,7 @@ import {
   Upload,
   X,
   Loader2,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import {
   useSessionPreviewMessages,
   useCreateMemory,
   useDeleteMemory,
+  useDashboardStats,
   useUpdateMemory,
   useExportMemories,
   useImportMemories,
@@ -41,6 +43,7 @@ import {
 import { useBackgroundDerivedSignals } from "@/lib/memory-insight-background";
 import { getActiveSpaceId, clearSpace, maskSpaceId } from "@/lib/session";
 import { MemoryCard } from "@/components/space/memory-card";
+import { DashboardStatsSection } from "@/components/space/dashboard-stats";
 import { DetailPanel } from "@/components/space/detail-panel";
 import { EmptyState } from "@/components/space/empty-state";
 import { AddMemoryDialog } from "@/components/space/add-dialog";
@@ -321,6 +324,7 @@ export function SpacePage() {
   const exportMutation = useExportMemories(spaceId);
   const importMutation = useImportMemories(spaceId);
   const analysis = useSpaceAnalysis(spaceId, range);
+  const dashboardStats = useDashboardStats(spaceId, range);
   const { data: importTaskData } = useImportTasks(spaceId, importStatusOpen);
 
   const allMemories = sourceQuery.data ?? [];
@@ -742,6 +746,14 @@ export function SpacePage() {
             <Button
               variant="ghost"
               size="icon-sm"
+              onClick={() => navigate({ to: "/audit" })}
+              title={t("audit.title")}
+            >
+              <ShieldCheck className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={disconnect}
               data-mp-event="Dashboard/Space/DisconnectClicked"
               data-mp-page-name="space"
@@ -765,6 +777,10 @@ export function SpacePage() {
                   animation: "slide-up 0.4s cubic-bezier(0.16,1,0.3,1)",
                 }}
               >
+                <DashboardStatsSection
+                  stats={dashboardStats.data}
+                  loading={dashboardStats.isLoading}
+                />
                 <div className="flex items-center justify-between gap-3">
                   <div className="grid flex-1 grid-cols-3 gap-2">
                     <button

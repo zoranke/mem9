@@ -15,6 +15,7 @@ import type {
   MemoryUpdateInput,
   SessionMessage,
 } from "@/types/memory";
+import type { AuditLogListResponse, DashboardStats } from "@/types/dashboard";
 import type { TimeRangePreset } from "@/types/time-range";
 import { presetToParams } from "@/types/time-range";
 
@@ -47,6 +48,25 @@ export function useStats(spaceId: string, range?: TimeRangePreset) {
   return useQuery({
     queryKey: ["space", spaceId, "stats", range ?? "all"],
     queryFn: () => api.getStats(spaceId, timeParams),
+    enabled: !!spaceId,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDashboardStats(spaceId: string, range?: TimeRangePreset) {
+  const timeParams = range ? presetToParams(range) : undefined;
+  return useQuery<DashboardStats>({
+    queryKey: ["space", spaceId, "dashboardStats", range ?? "all"],
+    queryFn: () => api.getDashboardStats(spaceId, timeParams),
+    enabled: !!spaceId,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useAuditLogs(spaceId: string, limit = 100) {
+  return useQuery<AuditLogListResponse>({
+    queryKey: ["space", spaceId, "auditLogs", limit],
+    queryFn: () => api.listAuditLogs(spaceId, limit),
     enabled: !!spaceId,
     placeholderData: keepPreviousData,
   });

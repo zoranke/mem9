@@ -14,6 +14,10 @@ import type {
   SpaceInfo,
   TopicSummary,
 } from "@/types/memory";
+import type {
+  AuditLogListResponse,
+  DashboardStats,
+} from "@/types/dashboard";
 import type { TimeRangeParams } from "@/types/time-range";
 import type { ImportTask, ImportTaskList } from "@/types/import";
 import {
@@ -244,6 +248,20 @@ export const httpProvider: DashboardProvider = {
     };
   },
 
+  async getDashboardStats(
+    spaceId: string,
+    params?: TimeRangeParams,
+  ): Promise<DashboardStats> {
+    const qs = new URLSearchParams();
+    if (params?.updated_from) qs.set("updated_from", params.updated_from);
+    if (params?.updated_to) qs.set("updated_to", params.updated_to);
+    const suffix = qs.toString();
+    return request<DashboardStats>(
+      spaceId,
+      `/memories/stats${suffix ? `?${suffix}` : ""}`,
+    );
+  },
+
   async getMemory(spaceId: string, memoryId: string): Promise<Memory> {
     const response = await request<Memory>(
       spaceId,
@@ -333,6 +351,21 @@ export const httpProvider: DashboardProvider = {
         updated_at: m.updated_at,
       })),
     };
+  },
+
+  async listAuditLogs(
+    spaceId: string,
+    limit = 100,
+  ): Promise<AuditLogListResponse> {
+    return request<AuditLogListResponse>(spaceId, `/audit?limit=${limit}`);
+  },
+
+  async exportAuditLogs(
+    spaceId: string,
+    format: "csv" | "json",
+  ): Promise<Blob> {
+    const res = await requestRaw(spaceId, `/audit/export?format=${format}`);
+    return res.blob();
   },
 
   async importMemories(spaceId: string, file: File): Promise<ImportTask> {
